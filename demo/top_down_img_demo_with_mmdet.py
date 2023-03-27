@@ -13,6 +13,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     has_mmdet = False
 
+##############################################################
 
 def main():
     """Visualize the demo images.
@@ -25,18 +26,11 @@ def main():
     parser.add_argument('pose_config', help='Config file for pose')
     parser.add_argument('pose_checkpoint', help='Checkpoint file for pose')
     parser.add_argument('--img-root', type=str, default='', help='Image root')
-    parser.add_argument('--img', type=str, default='', help='Image file')
     parser.add_argument(
         '--show',
         action='store_true',
         default=False,
         help='whether to show img')
-    parser.add_argument(
-        '--out-img-root',
-        type=str,
-        default='',
-        help='root of the output img file. '
-        'Default not saving the visualization images.')
     parser.add_argument(
         '--device', default='cuda:0', help='Device used for inference')
     parser.add_argument(
@@ -66,8 +60,6 @@ def main():
 
     args = parser.parse_args()
 
-    assert args.show or (args.out_img_root != '')
-    assert args.img != ''
     assert args.det_config is not None
     assert args.det_checkpoint is not None
 
@@ -87,51 +79,60 @@ def main():
     else:
         dataset_info = DatasetInfo(dataset_info)
 
-    image_name = os.path.join(args.img_root, args.img)
-
+    for img in os.listdir(args.img_root):
+        if img.endswith('.jpg') or img.endswith('.png'):
+            image_name = os.path.join(args.img_root, img)
     # test a single image, the resulting box is (x1, y1, x2, y2)
-    mmdet_results = inference_detector(det_model, image_name)
+            mmdet_results = inference_detector(det_model, image_name)
 
-    # keep the person class bounding boxes.
-    person_results = process_mmdet_results(mmdet_results, args.det_cat_id)
+            # keep the person class bounding boxes.
+            person_results = process_mmdet_results(mmdet_results, args.det_cat_id)
 
-    # test a single image, with a list of bboxes.
+            # test a single image, with a list of bboxes.
 
-    # optional
-    return_heatmap = False
+            # optional
+            return_heatmap = False
 
-    # e.g. use ('backbone', ) to return backbone feature
-    output_layer_names = None
+            # e.g. use ('backbone', ) to return backbone feature
+            output_layer_names = None
 
-    pose_results, returned_outputs = inference_top_down_pose_model(
-        pose_model,
-        image_name,
-        person_results,
-        bbox_thr=args.bbox_thr,
-        format='xyxy',
-        dataset=dataset,
-        dataset_info=dataset_info,
-        return_heatmap=return_heatmap,
-        outputs=output_layer_names)
+            pose_results, returned_outputs = inference_top_down_pose_model(
+                pose_model,
+                image_name,
+                person_results,
+                bbox_thr=args.bbox_thr,
+                format='xyxy',
+                dataset=dataset,
+                dataset_info=dataset_info,
+                return_heatmap=return_heatmap,
+                outputs=output_layer_names)
+            result_1=[0]*len(pose_results)
+            result_5=[0]*len(pose_results)    
+            for i in range(len(pose_results)):
+                for j in range(21):
+                    if pose_results[i]['keypoints'][j][2]>0.1:
+                        result_1[i]=result_1[i]+1
+                    if pose_results[i]['keypoints'][j][2]>0.5:
+                        result_5[i]=result_5[i]+1
+            result_5=[False if i<11 else True for i in result_5]
+            if all(result_5)==False:
+                # print(result_5)
+                print(image_name, " : wrong hand")
+            else:
+                print(image_name, " : True hand")
 
-    if args.out_img_root == '':
-        out_file = None
-    else:
-        os.makedirs(args.out_img_root, exist_ok=True)
-        out_file = os.path.join(args.out_img_root, f'vis_{args.img}')
 
     # show the results
-    vis_pose_result(
-        pose_model,
-        image_name,
-        pose_results,
-        dataset=dataset,
-        dataset_info=dataset_info,
-        kpt_score_thr=args.kpt_thr,
-        radius=args.radius,
-        thickness=args.thickness,
-        show=args.show,
-        out_file=out_file)
+            vis_pose_result(
+                pose_model,
+                image_name,
+                pose_results,
+                dataset=dataset,
+                dataset_info=dataset_info,
+                kpt_score_thr=args.kpt_thr,
+                radius=args.radius,
+                thickness=args.thickness,
+                show=args.show)
 
 
 if __name__ == '__main__':
